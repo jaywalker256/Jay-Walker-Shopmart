@@ -50,6 +50,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 
 /* ============================================================
@@ -143,6 +144,40 @@ const SITE = {
   termsText: "By ordering from Jay Walker Shopmart you agree to pay the listed price plus any delivery fee shown at checkout, arranged directly with us over email or WhatsApp. Prices are in " + "UGX" + " and may change without notice. We reserve the right to cancel an order (with a full refund of anything already paid) if an item sells out before payment is confirmed.",
   privacyText: "We collect your name, email, phone, and delivery address only to process and deliver your order, and to contact you about payment. We don't sell or share your information with third parties.",
 
+  // ---- FAQ — shown as an accordion in the "Shipping, returns & FAQ" section
+  // on the page. Edit freely, add/remove questions as needed — the section
+  // just loops over this list, no code changes needed.
+  faq: [
+    {
+      q: "How much does delivery cost, and how long does it take?",
+      a: "Delivery cost depends on your area — Kampala & Wakiso is the cheapest and fastest (1–3 business days), with the rest of the country taking 3–7 business days via courier. The exact fee for your area is shown automatically at checkout before you pay, so there's never a surprise cost. Free pickup is also available in Kampala, Jinja, Mbarara, Gulu, Mbale, Arua, and Fort Portal if you'd rather collect in person.",
+    },
+    {
+      q: "How do I track my order?",
+      a: "Once your order is placed we'll reach out by email or WhatsApp to confirm the details and let you know when it ships. If you paid online, you'll also get an emailed confirmation with your order number right away — just reply to that email any time for an update on where things stand.",
+    },
+    {
+      q: "What's your returns and exchange policy?",
+      a: "If an item arrives damaged, the wrong size, or not what you ordered, contact us within 48 hours of delivery with photos and we'll arrange an exchange or refund at no extra cost to you. Beyond that, unworn items with tags still attached can be exchanged for a different size within 7 days of delivery — just reach out first so we can confirm the swap before you send anything back.",
+    },
+    {
+      q: "My item arrived damaged or wrong — what do I do?",
+      a: "Email us at the address in the footer (or message us on WhatsApp) within 48 hours of delivery with a couple of photos of the item and the issue. We'll sort out a replacement or refund as quickly as we can — no need to fill out a form or wait on a call.",
+    },
+    {
+      q: "What payment methods do you accept?",
+      a: "Mobile money, bank transfer, and cash on delivery are all available — we'll confirm which works best for you by email or WhatsApp after you place an order. Card and mobile money payments are also available directly at checkout when online payment is enabled.",
+    },
+    {
+      q: "Can I cancel or change my order after placing it?",
+      a: "Yes, as long as it hasn't shipped yet. Contact us as soon as possible by email or WhatsApp with your order number and what you'd like to change — we'll do our best to catch it before it goes out.",
+    },
+    {
+      q: "How do I know what size to order?",
+      a: "Every product with sizes has a \"Size guide\" link right next to the size options on its product page, with measurements in centimeters for chest and waist. If you're still unsure between two sizes, message us — we're happy to help you pick before you order.",
+    },
+  ],
+
   // ---- ONLINE PAYMENTS (Pesapal) ----
   // Payments are handled by a Netlify function (netlify/functions/pesapal-submit-order.js)
   // using your Pesapal consumer key/secret, which live as environment variables on
@@ -152,275 +187,82 @@ const SITE = {
   // sent straight to your email (and offered over WhatsApp) to arrange payment
   // and delivery yourself.
   paymentsEnabled: false,
+
+  // ---- ORDER CONFIRMATION EMAILS ----
+  // When true, every order (whether paid online via Pesapal, or sent to you to
+  // arrange manually) automatically triggers a confirmation email to the
+  // CUSTOMER, sent via a Netlify function (netlify/functions/send-order-
+  // confirmation.js) using Resend (resend.com — free tier is plenty for a
+  // small shop). This is separate from the receipt shown on-screen — it's a
+  // copy that lands in their inbox even if they close the tab.
+  // Setup:
+  //   1. Create a free Resend account and verify a sending domain (or use
+  //      their onboarding@resend.dev address for quick testing).
+  //   2. Create an API key in Resend.
+  //   3. In Netlify → Site settings → Environment variables, add:
+  //        RESEND_API_KEY   = your Resend API key
+  //        RESEND_FROM      = e.g. "Jay Walker Shopmart <orders@yourdomain.com>"
+  //   4. Set orderConfirmationEmailsEnabled to true below.
+  // Until then, leave this false — customers still see the on-screen receipt,
+  // they just won't get an emailed copy.
+  orderConfirmationEmailsEnabled: false,
 };
 
-// Each product: id, name, category (Shirts | Denim | Outerwear | Dresses | Footwear | Accessories),
-// price, edition (current made / total run — also used to track stock: once made
-// reaches total, the item shows as "Sold out"), description, and accent color.
+// Products now live in a Supabase database instead of being hardcoded here —
+// manage them (add, edit, delete, adjust stock) at /admin.html, which only
+// people you've added to the admin allowlist can sign into. See
+// ADMIN_SETUP.md for the one-time setup, and schema.sql for the database
+// structure this expects.
 //
-// PHOTOS — two ways to add them:
-//   1. One photo:  image: "https://your-image-link.jpg"
-//   2. Multiple photos (shows a swipeable gallery with dots on the product page —
-//      the card thumbnail always shows the first one): 
-//        images: [
-//          { src: "https://your-image-link-1.jpg" },
-//          { src: "https://your-image-link-2.jpg" },
-//          { src: "https://your-image-link-3.jpg" },
-//        ]
-//      Any number of images is fine. If neither is set, a color placeholder is
-//      shown instead.
-//
-// Add a "sizes" array (e.g. ["S","M","L","XL"]) to show size chips on the
-// product page — optional, omit for one-size or non-apparel items.
-//
-// By default, all sizes of a product share one stock count (editionMade/
-// editionTotal). To track stock per size instead (so "M" can sell out while
-// "L" is still available), add a "sizeStock" map of remaining units per size:
-//   sizeStock: { "S": 6, "M": 0, "L": 4, "XL": 9 }
-// A size shows as sold out on the product page once its count hits 0, and the
-// whole item shows "Sold out" once every listed size is at 0.
-//
-// "shipUnits" is how bulky/heavy the item is for delivery pricing — bigger
-// orders cost more to deliver, the way Jumia's fees scale with item size and
-// weight. Rough guide: 1 = small/light (accessories, tees, dresses),
-// 2 = medium (denim, sweaters, bags, shoes), 3 = bulky (jackets, boots).
-// Omit it and the item counts as 1.
-const PRODUCTS = [
-  {
-    id: "p1",
-    name: "Heavyweight Cotton Tee",
-    category: "Shirts",
-    shipUnits: 1,
-    price: 65000,
-    editionMade: 18,
-    editionTotal: 80,
-    description: "240gsm combed cotton, boxy fit, garment-dyed for a slightly worn-in look from day one. Holds its shape wash after wash.",
-    accent: "#ff5a3c",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/ff5a3c/ffffff?text=Heavyweight+Cotton+Tee%0AFront" },
-      { src: "https://placehold.co/800x800/ff5a3c/ffffff?text=Heavyweight+Cotton+Tee%0ABack" },
-      { src: "https://placehold.co/800x800/ff5a3c/ffffff?text=Heavyweight+Cotton+Tee%0ADetail" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-    sizeStock: { "S": 6, "M": 0, "L": 7, "XL": 5 }, // demo of per-size stock — remove this line to share one stock count across all sizes instead
-    // image: "https://your-image-link.jpg", // uncomment and paste a link to use a real photo
-  },
-  {
-    id: "p2",
-    name: "Straight-Leg Selvedge Denim",
-    category: "Denim",
-    shipUnits: 2,
-    price: 210000,
-    editionMade: 9,
-    editionTotal: 40,
-    description: "14oz raw selvedge denim, straight cut through the leg with a slightly higher rise. Breaks in and fades with wear.",
-    accent: "#0ea5e9",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/0ea5e9/ffffff?text=Straight-Leg+Selvedge+Denim%0AFront" },
-      { src: "https://placehold.co/800x800/0ea5e9/ffffff?text=Straight-Leg+Selvedge+Denim%0ABack" },
-      { src: "https://placehold.co/800x800/0ea5e9/ffffff?text=Straight-Leg+Selvedge+Denim%0ADetail" },
-    ],
-    sizes: ["28", "30", "32", "34", "36"],
-  },
-  {
-    id: "p3",
-    name: "Waxed Field Jacket",
-    category: "Outerwear",
-    shipUnits: 3,
-    price: 330000,
-    editionMade: 6,
-    editionTotal: 30,
-    description: "Waxed cotton shell with a wool-blend lining, four-pocket utility front, and a corduroy collar. Built for rain and cold mornings.",
-    accent: "#7c3aed",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/7c3aed/ffffff?text=Waxed+Field+Jacket%0AFront" },
-      { src: "https://placehold.co/800x800/7c3aed/ffffff?text=Waxed+Field+Jacket%0ABack" },
-      { src: "https://placehold.co/800x800/7c3aed/ffffff?text=Waxed+Field+Jacket%0ADetail" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-  },
-  {
-    id: "p4",
-    name: "Wrap Midi Dress",
-    category: "Dresses",
-    shipUnits: 1,
-    price: 145000,
-    editionMade: 22,
-    editionTotal: 70,
-    description: "Soft drape viscose in a wrap silhouette with an adjustable tie waist. Cut to move — dresses down for day, up for evening.",
-    accent: "#ec4899",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/ec4899/ffffff?text=Wrap+Midi+Dress%0AFront" },
-      { src: "https://placehold.co/800x800/ec4899/ffffff?text=Wrap+Midi+Dress%0ABack" },
-      { src: "https://placehold.co/800x800/ec4899/ffffff?text=Wrap+Midi+Dress%0ADetail" },
-    ],
-    sizes: ["XS", "S", "M", "L"],
-  },
-  {
-    id: "p5",
-    name: "Merino Crew Sweater",
-    category: "Shirts",
-    shipUnits: 1,
-    price: 175000,
-    editionMade: 27,
-    editionTotal: 90,
-    description: "Fine-gauge merino wool, breathable enough for layering, warm enough on its own. Ribbed cuffs and hem hold their shape.",
-    accent: "#eab308",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/eab308/ffffff?text=Merino+Crew+Sweater%0AFront" },
-      { src: "https://placehold.co/800x800/eab308/ffffff?text=Merino+Crew+Sweater%0ABack" },
-      { src: "https://placehold.co/800x800/eab308/ffffff?text=Merino+Crew+Sweater%0ADetail" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-  },
-  {
-    id: "p6",
-    name: "Tapered Chino Trousers",
-    category: "Denim",
-    shipUnits: 2,
-    price: 120000,
-    editionMade: 29,
-    editionTotal: 80,
-    description: "Mid-weight cotton twill, tapered through the leg with a clean front. Works as easily with a tee as with a blazer.",
-    accent: "#84cc16",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/84cc16/ffffff?text=Tapered+Chino+Trousers%0AFront" },
-      { src: "https://placehold.co/800x800/84cc16/ffffff?text=Tapered+Chino+Trousers%0ABack" },
-      { src: "https://placehold.co/800x800/84cc16/ffffff?text=Tapered+Chino+Trousers%0ADetail" },
-    ],
-    sizes: ["28", "30", "32", "34", "36"],
-  },
-  {
-    id: "p7",
-    name: "Quilted Vest",
-    category: "Outerwear",
-    shipUnits: 3,
-    price: 130000,
-    editionMade: 41,
-    editionTotal: 80,
-    description: "Lightweight quilted shell over a recycled-fill lining. An easy layer for cool evenings without the bulk of a full jacket.",
-    accent: "#1fa088",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/1fa088/ffffff?text=Quilted+Vest%0AFront" },
-      { src: "https://placehold.co/800x800/1fa088/ffffff?text=Quilted+Vest%0ABack" },
-      { src: "https://placehold.co/800x800/1fa088/ffffff?text=Quilted+Vest%0ADetail" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-  },
-  {
-    id: "p8",
-    name: "Hand-Loomed Cotton Wrap Scarf",
-    category: "Accessories",
-    shipUnits: 1,
-    price: 85000,
-    editionMade: 51,
-    editionTotal: 120,
-    description: "Woven on a manual loom in small runs, finished with a hand-rolled edge. Soft, breathable cotton in a colorway that shifts slightly with each dye lot.",
-    accent: "#22c55e",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/22c55e/ffffff?text=Hand-Loomed+Cotton+Wrap+Scarf%0AFront" },
-      { src: "https://placehold.co/800x800/22c55e/ffffff?text=Hand-Loomed+Cotton+Wrap+Scarf%0ABack" },
-      { src: "https://placehold.co/800x800/22c55e/ffffff?text=Hand-Loomed+Cotton+Wrap+Scarf%0ADetail" },
-    ],
-  },
-  {
-    id: "p9",
-    name: "Canvas Weekender Bag",
-    category: "Accessories",
-    shipUnits: 1,
-    price: 210000,
-    editionMade: 18,
-    editionTotal: 50,
-    description: "Heavy waxed canvas body with leather straps and a brass zip. Fits an overnight's worth of clothes without looking like a gym bag.",
-    accent: "#06b6d4",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/06b6d4/ffffff?text=Canvas+Weekender+Bag%0AFront" },
-      { src: "https://placehold.co/800x800/06b6d4/ffffff?text=Canvas+Weekender+Bag%0ABack" },
-      { src: "https://placehold.co/800x800/06b6d4/ffffff?text=Canvas+Weekender+Bag%0ADetail" },
-    ],
-  },
-  {
-    id: "p10",
-    name: "Leather Chelsea Boots",
-    category: "Footwear",
-    shipUnits: 2,
-    price: 275000,
-    editionMade: 27,
-    editionTotal: 90,
-    description: "Full-grain leather uppers on a stacked leather heel, elastic side panels for an easy on-off. Resoleable, built to last years.",
-    accent: "#a8763e",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/a8763e/ffffff?text=Leather+Chelsea+Boots%0AFront" },
-      { src: "https://placehold.co/800x800/a8763e/ffffff?text=Leather+Chelsea+Boots%0ABack" },
-      { src: "https://placehold.co/800x800/a8763e/ffffff?text=Leather+Chelsea+Boots%0ADetail" },
-    ],
-    sizes: ["39", "40", "41", "42", "43", "44"],
-  },
-  {
-    id: "p11",
-    name: "Linen Button-Down Shirt",
-    category: "Shirts",
-    shipUnits: 1,
-    price: 98000,
-    editionMade: 37,
-    editionTotal: 100,
-    description: "Lightweight European linen, relaxed fit, mother-of-pearl buttons. Breathable enough for hot afternoons, sharp enough for the office.",
-    accent: "#f97316",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/f97316/ffffff?text=Linen+Button-Down+Shirt%0AFront" },
-      { src: "https://placehold.co/800x800/f97316/ffffff?text=Linen+Button-Down+Shirt%0ABack" },
-      { src: "https://placehold.co/800x800/f97316/ffffff?text=Linen+Button-Down+Shirt%0ADetail" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-  },
-  {
-    id: "p12",
-    name: "Minimalist Leather Belt",
-    category: "Accessories",
-    shipUnits: 1,
-    price: 65000,
-    editionMade: 60,
-    editionTotal: 150,
-    description: "A single strip of vegetable-tanned leather with a solid brass buckle, hand-burnished at the edges. Darkens nicely with age.",
-    accent: "#a855f7",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/a855f7/ffffff?text=Minimalist+Leather+Belt%0AFront" },
-      { src: "https://placehold.co/800x800/a855f7/ffffff?text=Minimalist+Leather+Belt%0ABack" },
-      { src: "https://placehold.co/800x800/a855f7/ffffff?text=Minimalist+Leather+Belt%0ADetail" },
-    ],
-    sizes: ["S", "M", "L"],
-  },
-  {
-    id: "p13",
-    name: "Canvas Low-Top Sneakers",
-    category: "Footwear",
-    shipUnits: 2,
-    price: 120000,
-    editionMade: 29,
-    editionTotal: 80,
-    description: "Durable cotton canvas uppers on a cushioned rubber sole. An everyday sneaker that pairs with almost anything in the closet.",
-    accent: "#5b6470",
-    // DRAFT placeholder photos — replace each src with your real product photo URLs.
-    images: [
-      { src: "https://placehold.co/800x800/5b6470/ffffff?text=Canvas+Low-Top+Sneakers%0AFront" },
-      { src: "https://placehold.co/800x800/5b6470/ffffff?text=Canvas+Low-Top+Sneakers%0ABack" },
-      { src: "https://placehold.co/800x800/5b6470/ffffff?text=Canvas+Low-Top+Sneakers%0ADetail" },
-    ],
-    sizes: ["38", "39", "40", "41", "42", "43", "44"],
-  },
-];
+// PRODUCTS starts empty and is filled in by loadProducts() below, which runs
+// once automatically before the page first renders (see the "init" section
+// near the bottom of the second <script> block).
+let PRODUCTS = [];
+
+// ---- SUPABASE CONNECTION ----
+// Paste the same Project URL and anon public key you used in admin.html
+// (Supabase Dashboard -> Project Settings -> API). The anon key is safe to
+// use in client-side code like this -- it only grants the public, read-only
+// access to products that schema.sql sets up; it can't add, edit, or delete
+// anything on its own.
+const SUPABASE_URL = 'https://nvdcfkynmsnfatgoluuu.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52ZGNma3lubXNuZmF0Z29sdXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjUxNzgsImV4cCI6MjEwMDQwMTE3OH0.KjOKVcqbR_kom46N7Pbjg8Q236ULB5bLuGjWwcfJ6Lg';
+const supabaseClient = (SUPABASE_URL.startsWith('YOUR_') || SUPABASE_ANON_KEY.startsWith('YOUR_'))
+  ? null
+  : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Converts one database row (snake_case columns) into the shape the rest of
+// this file expects (camelCase — the same shape the old hardcoded PRODUCTS
+// array used, so nothing else in this file needs to change).
+function mapDbProduct(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    shipUnits: row.ship_units || 1,
+    price: row.price,
+    editionMade: row.edition_made,
+    editionTotal: row.edition_total,
+    description: row.description,
+    accent: row.accent,
+    images: row.images || [],
+    sizes: row.sizes || undefined,
+    sizeStock: row.size_stock || undefined,
+  };
+}
+
+async function loadProducts() {
+  if (!supabaseClient) {
+    console.warn('Supabase is not configured yet (see the SUPABASE_URL / SUPABASE_ANON_KEY comment near the top of index.html). No products will show until it is.');
+    return;
+  }
+  const { data, error } = await supabaseClient.from('products').select('*').order('name');
+  if (error) {
+    console.error('Could not load products from Supabase:', error);
+    return;
+  }
+  PRODUCTS = (data || []).map(mapDbProduct);
+}
 </script>
 
 <style>
@@ -930,6 +772,35 @@ const PRODUCTS = [
   }
   .card.sold-out .card-media { filter: grayscale(0.6); opacity: 0.75; }
 
+  .card-lowstock {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--iron);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 5px 9px;
+    border-radius: 20px;
+  }
+  .modal-lowstock {
+    display: inline-block;
+    margin-left: 8px;
+    color: var(--iron);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .size-chip-lowstock {
+    font-size: 0.62rem;
+    color: var(--iron);
+    font-family: var(--mono);
+    display: block;
+    margin-top: 2px;
+  }
+
   /* ---------- About ---------- */
 
   .about-section {
@@ -1029,6 +900,72 @@ const PRODUCTS = [
     font-size: 0.85rem;
     text-align: center;
     padding: 24px;
+  }
+
+  /* ---------- FAQ ---------- */
+
+  .faq-section {
+    padding: 70px 0 80px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .faq-section h2 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 1.9rem;
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 24px;
+  }
+
+  .faq-list {
+    max-width: 760px;
+  }
+
+  .faq-item {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .faq-item summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 18px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  .faq-item summary::-webkit-details-marker { display: none; }
+
+  .faq-item summary::after {
+    content: '+';
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 1.2rem;
+    color: var(--steel);
+    transition: transform 0.2s;
+  }
+
+  .faq-item[open] summary::after {
+    content: '\2212';
+    color: var(--iron);
+  }
+
+  .faq-item summary:hover { color: var(--iron); }
+
+  .faq-answer {
+    color: var(--steel);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 62ch;
+    padding-bottom: 20px;
   }
 
   /* ---------- Footer ---------- */
@@ -1726,6 +1663,13 @@ const PRODUCTS = [
   </div>
 </section>
 
+<section class="faq-section" id="faq">
+  <div class="wrap">
+    <h2>Shipping, returns &amp; questions</h2>
+    <div class="faq-list" id="faqList"></div>
+  </div>
+</section>
+
 <footer id="contact">
   <div class="wrap footer-row">
     <div id="footerName"></div>
@@ -1733,7 +1677,7 @@ const PRODUCTS = [
       <a id="footerEmail" href="#"></a>
       <a id="footerWhatsApp" href="#" target="_blank" rel="noopener">WhatsApp</a>
       <a id="footerInsta" href="#" target="_blank" rel="noopener">TikTok</a>
-      <a href="javascript:void(0)" data-info="shipping">Shipping &amp; Returns</a>
+      <a href="#faq">Shipping, Returns &amp; FAQ</a>
       <a href="javascript:void(0)" data-info="terms">Terms &amp; Privacy</a>
     </div>
   </div>
@@ -1903,6 +1847,16 @@ const PRODUCTS = [
     footerWhatsApp.style.display = 'none';
   }
 
+  // ---------- FAQ ----------
+  const faqListEl = document.getElementById('faqList');
+  if (faqListEl && Array.isArray(SITE.faq)) {
+    faqListEl.innerHTML = SITE.faq.map((item, i) => `
+      <details class="faq-item"${i === 0 ? ' open' : ''}>
+        <summary>${item.q}</summary>
+        <div class="faq-answer">${item.a}</div>
+      </details>`).join('');
+  }
+
   // ---------- state ----------
   let cart = JSON.parse(localStorage.getItem('foundry_cart') || '{}'); // { productId: qty }
   let activeFilter = 'all';
@@ -1931,6 +1885,29 @@ const PRODUCTS = [
     return rem !== null && rem <= 0;
   }
 
+  // ---------- inventory accuracy ----------
+  // How many units of a given product (and size, if applicable) are still
+  // available to sell. Used to stop the cart from exceeding real stock and
+  // to power the "Only X left" low-stock badges below.
+  const LOW_STOCK_THRESHOLD = 5;
+  function remainingUnits(p, size) {
+    if (p.sizeStock && size) {
+      const rem = currentSizeRemaining(p, size);
+      return rem === null ? Infinity : Math.max(0, rem);
+    }
+    return Math.max(0, p.editionTotal - currentEditionMade(p));
+  }
+  function isLowStock(p, size) {
+    const rem = remainingUnits(p, size);
+    return rem > 0 && rem <= LOW_STOCK_THRESHOLD;
+  }
+  // How many of this exact product+size are already sitting in the cart —
+  // needed so "add to cart" and the qty stepper both respect real stock
+  // rather than just checking product-level totals in isolation.
+  function qtyInCart(id, size) {
+    return cart[cartKey(id, size)] || 0;
+  }
+
   function saveCart() {
     localStorage.setItem('foundry_cart', JSON.stringify(cart));
   }
@@ -1952,20 +1929,25 @@ const PRODUCTS = [
   }
 
   // ---------- filters ----------
-  const categories = ['all', ...new Set(PRODUCTS.map(p => p.category))];
-  const filtersEl = document.getElementById('filters');
-  categories.forEach(cat => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn' + (cat === 'all' ? ' active' : '');
-    btn.textContent = cat;
-    btn.dataset.cat = cat;
-    btn.addEventListener('click', () => {
-      activeFilter = cat;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
-      renderGrid();
+  // Built from whatever categories exist in PRODUCTS once it's loaded from
+  // Supabase — called from init() below, not at script-load time.
+  function renderFilters() {
+    const categories = ['all', ...new Set(PRODUCTS.map(p => p.category))];
+    const filtersEl = document.getElementById('filters');
+    filtersEl.querySelectorAll('.filter-btn').forEach(b => b.remove());
+    categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-btn' + (cat === 'all' ? ' active' : '');
+      btn.textContent = cat;
+      btn.dataset.cat = cat;
+      btn.addEventListener('click', () => {
+        activeFilter = cat;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+        renderGrid();
+      });
+      filtersEl.appendChild(btn);
     });
-    filtersEl.appendChild(btn);
-  });
+  }
   document.getElementById('searchInput').addEventListener('input', (e) => {
     searchTerm = e.target.value.trim().toLowerCase();
     renderGrid();
@@ -1988,9 +1970,15 @@ const PRODUCTS = [
         linear-gradient(155deg, ${p.accent}55 0%, ${p.accent} 100%);`;
     const madeNow = currentEditionMade(p);
     const soldOut = isSoldOut(p);
+    // Low-stock badge only makes sense at the product level here (a card can't
+    // show per-size stock) — so it's based on overall remaining units, and only
+    // shown for products without per-size stock tracking to avoid a misleading
+    // "low stock" flag when only one size out of several is actually low.
+    const overallLow = !soldOut && !p.sizeStock && isLowStock(p);
+    const remaining = remainingUnits(p);
     return `<div class="card-media" data-id="${p.id}" style="${bg}" role="img" aria-label="${p.name}">
         <div class="card-edition">No. ${String(madeNow).padStart(3,'0')}/${p.editionTotal}</div>
-        ${soldOut ? '<div class="card-soldout">Sold out</div>' : ''}
+        ${soldOut ? '<div class="card-soldout">Sold out</div>' : (overallLow ? `<div class="card-lowstock">Only ${remaining} left</div>` : '')}
       </div>`;
   }
 
@@ -2043,16 +2031,41 @@ const PRODUCTS = [
 
   // ---------- cart logic ----------
   function addToCart(id, size, qty = 1) {
+    const p = productById(id);
+    if (!p) return;
     const key = cartKey(id, size);
-    cart[key] = (cart[key] || 0) + qty;
+    const available = remainingUnits(p, size);
+    const already = cart[key] || 0;
+    const room = available - already;
+    if (room <= 0) {
+      showToast(`Sorry, that's all the stock we have of ${p.name}${size ? ` (${size})` : ''}`);
+      return;
+    }
+    const added = Math.min(qty, room);
+    cart[key] = already + added;
     saveCart();
     renderCart();
-    showToast(productById(id).name + (size ? ` (${size})` : '') + ' added to cart');
+    if (added < qty) {
+      showToast(`Only ${available} of ${p.name}${size ? ` (${size})` : ''} in stock — added what's left`);
+    } else {
+      showToast(p.name + (size ? ` (${size})` : '') + ' added to cart');
+    }
   }
 
   function setQty(key, qty) {
-    if (qty <= 0) { delete cart[key]; }
-    else { cart[key] = qty; }
+    if (qty <= 0) {
+      delete cart[key];
+    } else {
+      const { id, size } = parseCartKey(key);
+      const p = productById(id);
+      const available = p ? remainingUnits(p, size) : Infinity;
+      if (qty > available) {
+        qty = available;
+        showToast(available > 0 ? `Only ${available} left in stock` : 'No more in stock');
+      }
+      if (qty <= 0) { delete cart[key]; }
+      else { cart[key] = qty; }
+    }
     saveCart();
     renderCart();
   }
@@ -2182,10 +2195,14 @@ const PRODUCTS = [
         <button class="modal-close" id="modalCloseBtn">&times;</button>
         <div class="modal-cat">${p.category}</div>
         <div class="modal-name">${p.name}</div>
-        <div class="modal-edition">Edition No. ${String(madeNow).padStart(3,'0')} of ${p.editionTotal}${soldOut ? ' · Sold out' : ''}</div>
+        <div class="modal-edition">Edition No. ${String(madeNow).padStart(3,'0')} of ${p.editionTotal}${soldOut ? ' · Sold out' : ''}${(!p.sizeStock && isLowStock(p)) ? `<span class="modal-lowstock">Only ${remainingUnits(p)} left</span>` : ''}</div>
         <p class="modal-desc">${p.description}</p>
         ${hasSizes ? `<div class="modal-sizes" id="modalSizes">
-            ${p.sizes.map(s => `<button type="button" class="size-chip" data-size="${s}" ${isSizeSoldOut(p, s) ? 'disabled' : ''}>${s}</button>`).join('')}
+            ${p.sizes.map(s => {
+              const sizeSoldOut = isSizeSoldOut(p, s);
+              const sizeLow = !sizeSoldOut && p.sizeStock && isLowStock(p, s);
+              return `<button type="button" class="size-chip" data-size="${s}" ${sizeSoldOut ? 'disabled' : ''}>${s}${sizeLow ? `<span class="size-chip-lowstock">${remainingUnits(p, s)} left</span>` : ''}</button>`;
+            }).join('')}
             <a href="javascript:void(0)" class="size-guide-link" id="sizeGuideLink">Size guide</a>
           </div>` : ''}
         <div class="modal-price">${money(p.price)}</div>
@@ -2462,13 +2479,89 @@ const PRODUCTS = [
     ].filter(Boolean).join('\n');
   }
 
+  // Builds one consistent order object (same shape whichever checkout path is
+  // used) so the receipt, stock updates, and confirmation email all read from
+  // a single source of truth instead of three slightly different snapshots.
+  function buildOrderObject(name, email, phone, address, note) {
+    const opts = SITE.deliveryOptions || [];
+    const opt = opts[parseInt(deliverySelect.value, 10)];
+    return {
+      items: Object.entries(cart).map(([key, qty]) => {
+        const { id, size } = parseCartKey(key);
+        return { id, size, qty };
+      }),
+      subtotal: cartSubtotal(),
+      deliveryLabel: opt ? opt.label : '',
+      deliveryFee: currentDeliveryFee(),
+      total: orderTotal(),
+      name, email, phone, address, note,
+      placedAt: new Date().toISOString(),
+    };
+  }
+
+  // Decrements local stock counts for whatever was just ordered — shared by
+  // both the online-payment path and the manual/email path so inventory stays
+  // accurate no matter how the order was placed.
+  function applyStockForOrder(order) {
+    order.items.forEach(({ id, size, qty }) => {
+      const p = productById(id);
+      if (!p) return;
+      if (p.sizeStock && size) {
+        const existing = (stockOverrides[id] && typeof stockOverrides[id] === 'object') ? stockOverrides[id] : { ...p.sizeStock };
+        const remaining = existing[size] != null ? existing[size] : (p.sizeStock[size] || 0);
+        existing[size] = Math.max(0, remaining - qty);
+        stockOverrides[id] = existing;
+      } else {
+        const made = currentEditionMade(p);
+        stockOverrides[id] = Math.min(p.editionTotal, made + qty);
+      }
+    });
+    localStorage.setItem('jws_stock_overrides', JSON.stringify(stockOverrides));
+  }
+
+  // Fires a confirmation email to the customer via the Netlify function, if
+  // enabled. Deliberately fire-and-forget: a failure here should never block
+  // the on-screen receipt the customer already sees, so it only logs quietly.
+  function sendOrderConfirmationEmail(order, orderId) {
+    if (!SITE.orderConfirmationEmailsEnabled || !order.email) return;
+    fetch('/.netlify/functions/send-order-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        shopName: SITE.shopName,
+        replyTo: SITE.contactEmail,
+        order,
+        itemLines: order.items.map(({ id, size, qty }) => {
+          const p = productById(id);
+          return p ? { name: p.name, size, qty, lineTotal: p.price * qty } : null;
+        }).filter(Boolean),
+      }),
+    }).catch(err => console.warn('Order confirmation email failed to send:', err));
+  }
+
   function sendOrderByEmail(name, email, phone, address, note) {
+    const order = buildOrderObject(name, email, phone, address, note);
+    const orderId = generateOrderId();
+
+    // Open the customer's email client with the order pre-filled to us — this
+    // stays as the direct line to the shop, exactly as before.
     const body = orderSummaryText(name, email, phone, address) + (note ? `\n\nNote: ${note}` : '');
     const subject = encodeURIComponent(`New order — ${SITE.shopName}`);
     const mailBody = encodeURIComponent(body);
     window.location.href = `mailto:${SITE.contactEmail}?subject=${subject}&body=${mailBody}`;
     closeCheckoutModal();
-    showToast('Opening your email client to send the order…');
+
+    // Reserve stock, show the customer an on-screen confirmation, and (if set
+    // up) email them a copy — so they have proof of the order even if their
+    // email client never actually opens/sends.
+    applyStockForOrder(order);
+    renderGrid();
+    showReceipt(order, orderId, false);
+    sendOrderConfirmationEmail(order, orderId);
+    cart = {};
+    saveCart();
+    renderCart();
   }
 
   async function payWithPesapal(name, email, phone, address, note) {
@@ -2499,20 +2592,7 @@ const PRODUCTS = [
       // payment-callback.html is the piece that actually confirms payment succeeded —
       // it should set localStorage 'jws_last_paid_order' to some order id on success,
       // or redirect back here with ?payment=failed / ?payment=cancelled otherwise.
-      const opts = SITE.deliveryOptions || [];
-      const opt = opts[parseInt(deliverySelect.value, 10)];
-      localStorage.setItem('jws_pending_order', JSON.stringify({
-        items: Object.entries(cart).map(([key, qty]) => {
-          const { id, size } = parseCartKey(key);
-          return { id, size, qty };
-        }),
-        subtotal: cartSubtotal(),
-        deliveryLabel: opt ? opt.label : '',
-        deliveryFee: currentDeliveryFee(),
-        total: orderTotal(),
-        name, email, phone, address, note,
-        placedAt: new Date().toISOString(),
-      }));
+      localStorage.setItem('jws_pending_order', JSON.stringify(buildOrderObject(name, email, phone, address, note)));
       // Cart stays intact until payment-callback.html confirms success —
       // it's cleared there, not here, in case the customer abandons payment.
       window.location.href = data.redirectUrl;
@@ -2580,7 +2660,7 @@ const PRODUCTS = [
     return 'JWS-' + Date.now().toString(36).toUpperCase();
   }
 
-  function showReceipt(order, orderId) {
+  function showReceipt(order, orderId, paid = true) {
     const lines = order.items.map(({ id, size, qty }) => {
       const p = productById(id);
       if (!p) return '';
@@ -2589,11 +2669,12 @@ const PRODUCTS = [
     const hasDelivery = typeof order.deliveryFee === 'number';
     document.getElementById('receiptModalBody').innerHTML = `
       <button class="modal-close" id="receiptCloseBtn" style="float:right;">&times;</button>
-      <h3>Order confirmed</h3>
+      <h3>${paid ? 'Order confirmed' : 'Order received'}</h3>
       <div class="receipt-meta">Order ${orderId} · ${new Date(order.placedAt).toLocaleString()}<br>${order.name} · ${order.email}${order.phone ? ' · ' + order.phone : ''}${order.address ? '<br>' + order.address : ''}</div>
+      ${!paid ? `<p style="color:var(--steel); font-size:0.9rem; margin-bottom:14px;">We've received this order and reserved your items. We'll reach out by email${SITE.contactWhatsApp ? ' or WhatsApp' : ''} shortly to confirm payment and delivery details.</p>` : ''}
       ${lines}
       ${hasDelivery ? `<div class="receipt-line"><span>Delivery${order.deliveryLabel ? ' — ' + order.deliveryLabel : ''}</span><span>${money(order.deliveryFee)}</span></div>` : ''}
-      <div class="receipt-total"><span>Total paid</span><span>${money(order.total != null ? order.total : order.subtotal)}</span></div>
+      <div class="receipt-total"><span>${paid ? 'Total paid' : 'Total due'}</span><span>${money(order.total != null ? order.total : order.subtotal)}</span></div>
       <div class="form-actions">
         <button class="cancel-btn" id="receiptOkBtn">Close</button>
         <button class="submit-btn" id="receiptPrintBtn">Print receipt</button>
@@ -2619,10 +2700,18 @@ const PRODUCTS = [
   }
 
   // ---------- init ----------
-  renderGrid();
-  renderCart();
+  // Products load from Supabase first (see loadProducts() near the top of
+  // the previous <script> block); everything that reads PRODUCTS waits for
+  // that to finish before it runs.
+  (async function init() {
+    await loadProducts();
+    renderFilters();
+    renderGrid();
+    renderCart();
+    handlePaymentReturn();
+  })();
 
-  (function handlePaymentReturn() {
+  function handlePaymentReturn() {
     // Successful payment: payment-callback.html is expected to set this flag.
     const paidId = localStorage.getItem('jws_last_paid_order');
     const pendingRaw = localStorage.getItem('jws_pending_order');
@@ -2630,22 +2719,10 @@ const PRODUCTS = [
 
     if (paidId) {
       if (pending) {
-        // Decrement local stock counts for what was bought.
-        pending.items.forEach(({ id, size, qty }) => {
-          const p = productById(id);
-          if (!p) return;
-          if (p.sizeStock && size) {
-            const existing = (stockOverrides[id] && typeof stockOverrides[id] === 'object') ? stockOverrides[id] : { ...p.sizeStock };
-            const remaining = existing[size] != null ? existing[size] : (p.sizeStock[size] || 0);
-            existing[size] = Math.max(0, remaining - qty);
-            stockOverrides[id] = existing;
-          } else {
-            const made = currentEditionMade(p);
-            stockOverrides[id] = Math.min(p.editionTotal, made + qty);
-          }
-        });
-        localStorage.setItem('jws_stock_overrides', JSON.stringify(stockOverrides));
-        showReceipt(pending, generateOrderId());
+        applyStockForOrder(pending);
+        const orderId = generateOrderId();
+        showReceipt(pending, orderId);
+        sendOrderConfirmationEmail(pending, orderId);
         renderGrid();
       }
       showToast('Payment received — thank you for your order!');
@@ -2676,7 +2753,7 @@ const PRODUCTS = [
         window.history.replaceState({}, '', newUrl);
       }
     }
-  })();
+  }
 })();
 </script>
 

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Jay Walker Shopmart</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --ink: #241934;
+    --paper: #fdf5ec;
+    --paper-raised: #ffffff;
+    --rule: #f0ddc8;
+    --iron: #ff5a3c;
+    --moss: #1fa088;
+    --steel: #6a5f7a;
+    --sun: #ffb800;
+    --grape: #7c3aed;
+    --danger: #d43f22;
+    --gradient-brand: linear-gradient(120deg, #ff5a3c 0%, #ffb800 45%, #7c3aed 100%);
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Fraunces', serif;
+    --body: 'Work Sans', sans-serif;
+  }
+  html[data-theme="dark"] {
+    --ink: #f4f1f8;
+    --paper: #1c1720;
+    --paper-raised: #262030;
+    --rule: #3a3244;
+    --steel: #c3b7d4;
+    --iron: #ff8265;
+    --moss: #5fcdb1;
+    --sun: #f0bb54;
+    --grape: #b199f0;
+    --danger: #ff6b52;
+    --gradient-brand: linear-gradient(120deg, #ff6b4d 0%, #f0bb54 45%, #a37bf0 100%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--body);
+    line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  header.top {
+    border-bottom: 1px solid var(--rule); padding: 20px 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .brand { font-family: var(--display); font-weight: 600; font-size: 1.3rem; }
+  .brand span {
+    background: var(--gradient-brand); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .who { font-family: var(--mono); font-size: 0.8rem; color: var(--steel); display: flex; align-items: center; gap: 14px; }
+  .link-btn {
+    font-family: var(--mono); font-size: 0.78rem; background: none; border: 1.5px solid var(--rule);
+    color: var(--ink); padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .link-btn:hover { border-color: var(--iron); color: var(--iron); }
+
+  main { padding: 40px 0 80px; }
+
+  /* ---------- login ---------- */
+  .login-card {
+    max-width: 380px; margin: 80px auto; background: var(--paper-raised);
+    border: 1px solid var(--rule); border-radius: 16px; padding: 36px 32px;
+  }
+  .login-card h1 { font-family: var(--display); font-size: 1.5rem; font-weight: 600; margin-bottom: 6px; }
+  .login-card p.sub { color: var(--steel); font-size: 0.9rem; margin-bottom: 24px; }
+  label { display: block; font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--steel); margin-bottom: 6px; }
+  input {
+    width: 100%; font-family: var(--body); font-size: 0.95rem; padding: 10px 12px;
+    border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper);
+    color: var(--ink); margin-bottom: 16px;
+  }
+  input:focus { outline: none; border-color: var(--grape); }
+  .btn-primary {
+    width: 100%; font-family: var(--mono); font-size: 0.85rem; font-weight: 500;
+    background: var(--gradient-brand); color: #fff; border: none; padding: 12px; border-radius: 24px;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .form-msg { font-size: 0.85rem; margin-top: 14px; color: var(--danger); min-height: 1.2em; }
+  .form-msg.ok { color: var(--moss); }
+
+  /* ---------- not-an-admin state ---------- */
+  .denied-card {
+    max-width: 460px; margin: 80px auto; text-align: center; background: var(--paper-raised);
+    border: 1px solid var(--rule); border-radius: 16px; padding: 40px 32px;
+  }
+  .denied-card h1 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 10px; }
+  .denied-card p { color: var(--steel); font-size: 0.92rem; margin-bottom: 20px; }
+
+  /* ---------- dashboard ---------- */
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+  .section-head h2 { font-family: var(--display); font-weight: 600; font-size: 1.4rem; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .search-input {
+    font-family: var(--body); font-size: 0.9rem; padding: 8px 14px; border: 1.5px solid var(--rule);
+    border-radius: 20px; background: var(--paper-raised); color: var(--ink); min-width: 200px;
+  }
+  .search-input:focus { outline: none; border-color: var(--grape); }
+  .btn-add {
+    font-family: var(--mono); font-size: 0.82rem; background: var(--ink); color: var(--paper);
+    border: none; padding: 10px 18px; border-radius: 20px; cursor: pointer; white-space: nowrap;
+  }
+  html[data-theme="dark"] .btn-add { background: var(--gradient-brand); color: #1c1720; }
+
+  .product-table { width: 100%; border-collapse: collapse; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+  .product-table th {
+    text-align: left; font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--steel); padding: 12px 14px; border-bottom: 1px solid var(--rule);
+  }
+  .product-table td { padding: 12px 14px; border-bottom: 1px solid var(--rule); font-size: 0.9rem; vertical-align: middle; }
+  .product-table tr:last-child td { border-bottom: none; }
+  .prow-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--rule); display: block; }
+  .prow-name { font-weight: 600; }
+  .prow-meta { color: var(--steel); font-size: 0.78rem; font-family: var(--mono); }
+  .stock-pill {
+    display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 3px 9px; border-radius: 12px;
+    background: var(--rule); color: var(--ink);
+  }
+  .stock-pill.low { background: var(--iron); color: #fff; }
+  .stock-pill.out { background: var(--ink); color: var(--paper); }
+  .row-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    font-family: var(--mono); font-size: 0.75rem; background: none; border: 1.5px solid var(--rule);
+    color: var(--ink); padding: 5px 11px; border-radius: 14px; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .icon-btn:hover { border-color: var(--grape); color: var(--grape); }
+  .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--steel); }
+
+  /* ---------- product edit modal ---------- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(20, 14, 26, 0.55);
+    align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--paper-raised); border-radius: 16px; max-width: 620px; width: 100%;
+    padding: 32px; position: relative;
+  }
+  .modal h3 { font-family: var(--display); font-weight: 600; font-size: 1.3rem; margin-bottom: 20px; }
+  .modal-close {
+    position: absolute; top: 20px; right: 24px; background: none; border: none; font-size: 1.4rem;
+    color: var(--steel); cursor: pointer; line-height: 1;
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  textarea {
+    width: 100%; font-family: var(--body); font-size: 0.92rem; padding: 10px 12px;
+    border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink);
+    margin-bottom: 16px; min-height: 80px; resize: vertical;
+  }
+  textarea:focus, .search-input:focus { outline: none; }
+  .hint { font-size: 0.78rem; color: var(--steel); margin: -10px 0 16px; }
+  .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .btn-secondary {
+    font-family: var(--mono); font-size: 0.82rem; background: none; border: 1.5px solid var(--rule);
+    color: var(--ink); padding: 10px 18px; border-radius: 20px; cursor: pointer;
+  }
+
+  /* ---------- admins panel ---------- */
+  .admin-list { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 12px; padding: 8px 0; margin-bottom: 14px; }
+  .admin-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
+  .admin-row:last-child { border-bottom: none; }
+  .admin-row .email { font-family: var(--mono); font-size: 0.85rem; }
+  .owner-tag { font-family: var(--mono); font-size: 0.68rem; color: var(--sun); margin-left: 8px; text-transform: uppercase; }
+  .invite-row { display: flex; gap: 10px; }
+  .invite-row input { margin-bottom: 0; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 0.85rem;
+    padding: 12px 20px; border-radius: 24px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    z-index: 100; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+  .tab-btn {
+    font-family: var(--mono); font-size: 0.82rem; background: none; border: 1.5px solid var(--rule);
+    color: var(--steel); padding: 8px 16px; border-radius: 20px; cursor: pointer;
+  }
+  .tab-btn.active { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  @media (max-width: 640px) {
+    .field-row { grid-template-columns: 1fr; }
+    .product-table thead { display: none; }
+    .product-table, .product-table tbody, .product-table tr, .product-table td { display: block; width: 100%; }
+    .product-table tr { padding: 12px 0; border-bottom: 1px solid var(--rule); }
+    .product-table td { border-bottom: none; padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Jay Walker Shopmart <span>Admin</span></div>
+    <div class="who" id="whoBar" style="display:none;">
+      <span id="whoEmail"></span>
+      <button class="link-btn" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ---------- Not configured yet ---------- -->
+  <div id="configWarning" class="denied-card" style="display:none;">
+    <h1>Not connected yet</h1>
+    <p>This admin panel needs its Supabase project URL and public key filled in at the top of the script before it will work. See ADMIN_SETUP.md for the full setup steps.</p>
+  </div>
+
+  <!-- ---------- Login ---------- -->
+  <div class="login-card" id="loginCard" style="display:none;">
+    <h1>Admin sign in</h1>
+    <p class="sub">Only invited team members can access this page.</p>
+    <form id="loginForm">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" required>
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required>
+      <button type="submit" class="btn-primary" id="loginBtn">Sign in</button>
+      <div class="form-msg" id="loginMsg"></div>
+    </form>
+  </div>
+
+  <!-- ---------- Logged in, but not on the admin allowlist ---------- -->
+  <div class="denied-card" id="deniedCard" style="display:none;">
+    <h1>Not an admin yet</h1>
+    <p>You're signed in, but this account hasn't been given access to manage products. Ask whoever set up this store to add your email to the admin list.</p>
+    <button class="link-btn" id="deniedSignOutBtn">Sign out</button>
+  </div>
+
+  <!-- ---------- Dashboard ---------- -->
+  <div id="dashboard" style="display:none;">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="products">Products</button>
+      <button class="tab-btn" data-tab="admins" id="adminsTabBtn" style="display:none;">Admin access</button>
+    </div>
+
+    <div class="tab-panel active" id="productsPanel">
+      <div class="section-head">
+        <h2>Products</h2>
+        <div class="toolbar">
+          <input type="text" class="search-input" id="productSearch" placeholder="Search products…">
+          <button class="btn-add" id="addProductBtn">+ Add product</button>
+        </div>
+      </div>
+      <div id="productTableWrap"></div>
+    </div>
+
+    <div class="tab-panel" id="adminsPanel">
+      <div class="section-head"><h2>Admin access</h2></div>
+      <p class="hint" style="margin-top:0;">Only people listed here can sign in and edit products. To add someone: first invite their email as a login in Supabase (Dashboard → Authentication → Users → Add user), then add that same email below.</p>
+      <div class="admin-list" id="adminList"></div>
+      <div class="invite-row">
+        <input type="email" id="newAdminEmail" placeholder="teammate@example.com">
+        <button class="btn-add" id="addAdminBtn">Add admin</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ---------- Product edit modal ---------- -->
+<div class="modal-overlay" id="productModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <h3 id="modalTitle">Add product</h3>
+    <form id="productForm">
+      <input type="hidden" id="pId">
+      <div class="field-row">
+        <div>
+          <label for="pName">Name</label>
+          <input type="text" id="pName" required>
+        </div>
+        <div>
+          <label for="pCategory">Category</label>
+          <input type="text" id="pCategory" placeholder="Shirts, Denim, Outerwear…" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div>
+          <label for="pPrice">Price (UGX)</label>
+          <input type="number" id="pPrice" min="0" step="1" required>
+        </div>
+        <div>
+          <label for="pShipUnits">Ship units</label>
+          <input type="number" id="pShipUnits" min="1" step="1" value="1">
+        </div>
+      </div>
+      <label for="pDescription">Description</label>
+      <textarea id="pDescription" required></textarea>
+      <div class="field-row">
+        <div>
+          <label for="pEditionMade">Made / sold so far</label>
+          <input type="number" id="pEditionMade" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label for="pEditionTotal">Total run size</label>
+          <input type="number" id="pEditionTotal" min="1" step="1" value="1">
+        </div>
+      </div>
+      <div class="hint">"Made / sold so far" reaching "Total run size" is what marks an item Sold out.</div>
+      <div class="field-row">
+        <div>
+          <label for="pAccent">Accent color</label>
+          <input type="text" id="pAccent" placeholder="#ff5a3c">
+        </div>
+        <div>
+          <label for="pSizes">Sizes (comma separated, optional)</label>
+          <input type="text" id="pSizes" placeholder="S, M, L, XL">
+        </div>
+      </div>
+      <label for="pImages">Photo URLs (one per line)</label>
+      <textarea id="pImages" placeholder="https://your-image-link-1.jpg&#10;https://your-image-link-2.jpg"></textarea>
+      <label for="pSizeStock">Per-size stock (optional — leave blank to share one stock count across all sizes)</label>
+      <textarea id="pSizeStock" placeholder="S: 6&#10;M: 0&#10;L: 7&#10;XL: 5"></textarea>
+      <div class="form-msg" id="productFormMsg"></div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" id="cancelProductBtn">Cancel</button>
+        <button type="submit" class="btn-primary" id="saveProductBtn" style="width:auto;">Save product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  // ============================================================
+  // CONFIG — paste these two values from your Supabase project:
+  // Dashboard → Project Settings → API → Project URL / anon public key.
+  // ============================================================
+  const SUPABASE_URL = 'https://nvdcfkynmsnfatgoluuu.supabase.co/rest/v1/';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52ZGNma3lubXNuZmF0Z29sdXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjUxNzgsImV4cCI6MjEwMDQwMTE3OH0.KjOKVcqbR_kom46N7Pbjg8Q236ULB5bLuGjWwcfJ6Lg
+';
+
+  if (SUPABASE_URL.startsWith('YOUR_') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
+    document.getElementById('configWarning').style.display = 'block';
+    return;
+  }
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const loginCard = document.getElementById('loginCard');
+  const deniedCard = document.getElementById('deniedCard');
+  const dashboard = document.getElementById('dashboard');
+  const whoBar = document.getElementById('whoBar');
+  const whoEmail = document.getElementById('whoEmail');
+
+  let currentUser = null;
+  let isOwner = false;
+  let products = [];
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  function money(n) { return 'UGX ' + Math.round(n).toLocaleString('en-UG'); }
+
+  // ---------- auth state ----------
+  async function refreshView() {
+    const { data: { session } } = await supabase.auth.getSession();
+    currentUser = session ? session.user : null;
+
+    loginCard.style.display = 'none';
+    deniedCard.style.display = 'none';
+    dashboard.style.display = 'none';
+    whoBar.style.display = 'none';
+
+    if (!currentUser) {
+      loginCard.style.display = 'block';
+      return;
+    }
+
+    whoBar.style.display = 'flex';
+    whoEmail.textContent = currentUser.email;
+
+    // Check the admins table — RLS only allows this to succeed (return the
+    // caller's own row) if their email is actually listed as an admin.
+    const { data: adminRows, error } = await supabase
+      .from('admins')
+      .select('email, is_owner')
+      .eq('email', currentUser.email);
+
+    if (error || !adminRows || adminRows.length === 0) {
+      deniedCard.style.display = 'block';
+      return;
+    }
+
+    isOwner = !!adminRows[0].is_owner;
+    document.getElementById('adminsTabBtn').style.display = isOwner ? 'inline-block' : 'none';
+    dashboard.style.display = 'block';
+    await loadProducts();
+    if (isOwner) await loadAdmins();
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btn = document.getElementById('loginBtn');
+    const msg = document.getElementById('loginMsg');
+    btn.disabled = true;
+    msg.textContent = '';
+    msg.classList.remove('ok');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    btn.disabled = false;
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+    await refreshView();
+  });
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    await refreshView();
+  }
+  document.getElementById('signOutBtn').addEventListener('click', signOut);
+  document.getElementById('deniedSignOutBtn').addEventListener('click', signOut);
+
+  // ---------- tabs ----------
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const tab = btn.dataset.tab;
+      document.getElementById('productsPanel').classList.toggle('active', tab === 'products');
+      document.getElementById('adminsPanel').classList.toggle('active', tab === 'admins');
+    });
+  });
+
+  // ---------- products ----------
+  async function loadProducts() {
+    const { data, error } = await supabase.from('products').select('*').order('name');
+    if (error) { showToast('Could not load products: ' + error.message); return; }
+    products = data || [];
+    renderProductTable();
+  }
+
+  let searchTerm = '';
+  document.getElementById('productSearch').addEventListener('input', (e) => {
+    searchTerm = e.target.value.trim().toLowerCase();
+    renderProductTable();
+  });
+
+  function stockInfo(p) {
+    if (p.size_stock && typeof p.size_stock === 'object') {
+      const total = Object.values(p.size_stock).reduce((a, b) => a + Number(b || 0), 0);
+      const out = total <= 0;
+      const low = !out && total <= 5;
+      return { label: total + ' left (by size)', out, low };
+    }
+    const remaining = Math.max(0, (p.edition_total || 0) - (p.edition_made || 0));
+    return { label: remaining + ' / ' + p.edition_total + ' left', out: remaining <= 0, low: remaining > 0 && remaining <= 5 };
+  }
+
+  function renderProductTable() {
+    const wrap = document.getElementById('productTableWrap');
+    let list = products;
+    if (searchTerm) {
+      list = list.filter(p => p.name.toLowerCase().includes(searchTerm) || p.category.toLowerCase().includes(searchTerm));
+    }
+    if (list.length === 0) {
+      wrap.innerHTML = '<div class="empty-state">No products yet. Click "+ Add product" to create your first one.</div>';
+      return;
+    }
+    wrap.innerHTML = `<table class="product-table">
+      <thead><tr><th></th><th>Product</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(p => {
+          const thumb = (p.images && p.images[0] && p.images[0].src) || '';
+          const s = stockInfo(p);
+          const pillClass = s.out ? 'out' : (s.low ? 'low' : '');
+          return `<tr data-id="${p.id}">
+            <td>${thumb ? `<img class="prow-thumb" src="${thumb}" alt="">` : `<div class="prow-thumb" style="background:${p.accent || 'var(--rule)'}"></div>`}</td>
+            <td><div class="prow-name">${escapeHtml(p.name)}</div><div class="prow-meta">${escapeHtml(p.category)}</div></td>
+            <td>${money(p.price)}</td>
+            <td><span class="stock-pill ${pillClass}">${s.out ? 'Sold out' : s.label}</span></td>
+            <td><div class="row-actions">
+              <button class="icon-btn edit-btn" data-id="${p.id}">Edit</button>
+              <button class="icon-btn danger delete-btn" data-id="${p.id}">Delete</button>
+            </div></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+    wrap.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => openProductModal(b.dataset.id)));
+    wrap.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', () => deleteProduct(b.dataset.id)));
+  }
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  const productModalOverlay = document.getElementById('productModalOverlay');
+  const productForm = document.getElementById('productForm');
+
+  function openProductModal(id) {
+    const p = id ? products.find(x => x.id === id) : null;
+    document.getElementById('modalTitle').textContent = p ? 'Edit product' : 'Add product';
+    document.getElementById('productFormMsg').textContent = '';
+    document.getElementById('pId').value = p ? p.id : '';
+    document.getElementById('pName').value = p ? p.name : '';
+    document.getElementById('pCategory').value = p ? p.category : '';
+    document.getElementById('pPrice').value = p ? p.price : '';
+    document.getElementById('pShipUnits').value = p ? (p.ship_units || 1) : 1;
+    document.getElementById('pDescription').value = p ? p.description : '';
+    document.getElementById('pEditionMade').value = p ? p.edition_made : 0;
+    document.getElementById('pEditionTotal').value = p ? p.edition_total : 1;
+    document.getElementById('pAccent').value = p ? (p.accent || '') : '';
+    document.getElementById('pSizes').value = p && p.sizes ? p.sizes.join(', ') : '';
+    document.getElementById('pImages').value = p && p.images ? p.images.map(i => i.src).join('\n') : '';
+    document.getElementById('pSizeStock').value = p && p.size_stock
+      ? Object.entries(p.size_stock).map(([s, n]) => `${s}: ${n}`).join('\n') : '';
+    productModalOverlay.classList.add('open');
+  }
+  function closeProductModal() { productModalOverlay.classList.remove('open'); }
+
+  document.getElementById('addProductBtn').addEventListener('click', () => openProductModal(null));
+  document.getElementById('modalCloseBtn').addEventListener('click', closeProductModal);
+  document.getElementById('cancelProductBtn').addEventListener('click', closeProductModal);
+  productModalOverlay.addEventListener('click', (e) => { if (e.target === productModalOverlay) closeProductModal(); });
+
+  function slugify(name) {
+    return 'p-' + name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+  }
+
+  productForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('productFormMsg');
+    const saveBtn = document.getElementById('saveProductBtn');
+    msg.textContent = '';
+    saveBtn.disabled = true;
+
+    const existingId = document.getElementById('pId').value;
+    const name = document.getElementById('pName').value.trim();
+    const sizesRaw = document.getElementById('pSizes').value.trim();
+    const sizes = sizesRaw ? sizesRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+    const imagesRaw = document.getElementById('pImages').value.trim();
+    const images = imagesRaw ? imagesRaw.split('\n').map(s => s.trim()).filter(Boolean).map(src => ({ src })) : [];
+    const sizeStockRaw = document.getElementById('pSizeStock').value.trim();
+    let sizeStock = null;
+    if (sizeStockRaw) {
+      sizeStock = {};
+      sizeStockRaw.split('\n').forEach(line => {
+        const [k, v] = line.split(':');
+        if (k && v !== undefined) sizeStock[k.trim()] = parseInt(v.trim(), 10) || 0;
+      });
+    }
+
+    const record = {
+      name,
+      category: document.getElementById('pCategory').value.trim(),
+      price: parseFloat(document.getElementById('pPrice').value) || 0,
+      ship_units: parseInt(document.getElementById('pShipUnits').value, 10) || 1,
+      description: document.getElementById('pDescription').value.trim(),
+      edition_made: parseInt(document.getElementById('pEditionMade').value, 10) || 0,
+      edition_total: parseInt(document.getElementById('pEditionTotal').value, 10) || 1,
+      accent: document.getElementById('pAccent').value.trim() || null,
+      sizes,
+      images,
+      size_stock: sizeStock,
+    };
+
+    let error;
+    if (existingId) {
+      ({ error } = await supabase.from('products').update(record).eq('id', existingId));
+    } else {
+      record.id = slugify(name);
+      ({ error } = await supabase.from('products').insert(record));
+    }
+
+    saveBtn.disabled = false;
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+    closeProductModal();
+    showToast(existingId ? 'Product updated' : 'Product added');
+    await loadProducts();
+  });
+
+  async function deleteProduct(id) {
+    const p = products.find(x => x.id === id);
+    if (!confirm(`Delete "${p ? p.name : id}"? This can't be undone.`)) return;
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) { showToast('Could not delete: ' + error.message); return; }
+    showToast('Product deleted');
+    await loadProducts();
+  }
+
+  // ---------- admins (owner only) ----------
+  async function loadAdmins() {
+    const { data, error } = await supabase.from('admins').select('*').order('added_at');
+    if (error) { showToast('Could not load admin list: ' + error.message); return; }
+    const list = document.getElementById('adminList');
+    if (!data || data.length === 0) {
+      list.innerHTML = '<div class="admin-row"><span class="email">No admins yet</span></div>';
+      return;
+    }
+    list.innerHTML = data.map(a => `
+      <div class="admin-row">
+        <span class="email">${escapeHtml(a.email)}${a.is_owner ? '<span class="owner-tag">Owner</span>' : ''}</span>
+        ${!a.is_owner ? `<button class="icon-btn danger remove-admin-btn" data-email="${escapeHtml(a.email)}">Remove</button>` : ''}
+      </div>`).join('');
+    list.querySelectorAll('.remove-admin-btn').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm(`Remove admin access for ${b.dataset.email}?`)) return;
+        const { error } = await supabase.from('admins').delete().eq('email', b.dataset.email);
+        if (error) { showToast('Could not remove: ' + error.message); return; }
+        showToast('Admin access removed');
+        await loadAdmins();
+      });
+    });
+  }
+
+  document.getElementById('addAdminBtn').addEventListener('click', async () => {
+    const input = document.getElementById('newAdminEmail');
+    const email = input.value.trim();
+    if (!email) return;
+    const { error } = await supabase.from('admins').insert({ email, is_owner: false });
+    if (error) { showToast('Could not add: ' + error.message); return; }
+    input.value = '';
+    showToast('Admin added — remember to also create their login in Supabase (Authentication → Users)');
+    await loadAdmins();
+  });
+
+  refreshView();
+})();
+</script>
+
+</body>
+</html>
