@@ -226,7 +226,7 @@ let PRODUCTS = [];
 // access to products that schema.sql sets up; it can't add, edit, or delete
 // anything on its own.
 const SUPABASE_URL = 'https://nvdcfkynmsnfatgoluuu.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = 'sb_publishable_bePEOugffF1Wuf78RF_5qg_soTUx75B';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52ZGNma3lubXNuZmF0Z29sdXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjUxNzgsImV4cCI6MjEwMDQwMTE3OH0.KjOKVcqbR_kom46N7Pbjg8Q236ULB5bLuGjWwcfJ6Lg';
 const supabaseClient = (SUPABASE_URL.startsWith('YOUR_') || SUPABASE_ANON_KEY.startsWith('YOUR_'))
   ? null
   : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
